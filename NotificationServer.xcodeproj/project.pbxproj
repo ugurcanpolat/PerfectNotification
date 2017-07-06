@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		F151DF971F0CC66B0043A85A /* AuthKey_KQT6GAT6X6.p8 in CopyFiles */ = {isa = PBXBuildFile; fileRef = F151DF961F0CC66B0043A85A /* AuthKey_KQT6GAT6X6.p8 */; };
+		F1B680341F0E25F4006121B3 /* AuthKey_KQT6GAT6X6.p8 in CopyFiles */ = {isa = PBXBuildFile; fileRef = F1B680331F0E25F4006121B3 /* AuthKey_KQT6GAT6X6.p8 */; };
 		OBJ_1000 /* cpt_err.c in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_256 /* cpt_err.c */; };
 		OBJ_1001 /* cryptlib.c in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_257 /* cryptlib.c */; };
 		OBJ_1002 /* ctr128.c in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_258 /* ctr128.c */; };
@@ -1192,14 +1192,14 @@
 			dstPath = "";
 			dstSubfolderSpec = 7;
 			files = (
-				F151DF971F0CC66B0043A85A /* AuthKey_KQT6GAT6X6.p8 in CopyFiles */,
+				F1B680341F0E25F4006121B3 /* AuthKey_KQT6GAT6X6.p8 in CopyFiles */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		F151DF961F0CC66B0043A85A /* AuthKey_KQT6GAT6X6.p8 */ = {isa = PBXFileReference; lastKnownFileType = text; path = AuthKey_KQT6GAT6X6.p8; sourceTree = "<group>"; };
+		F1B680331F0E25F4006121B3 /* AuthKey_KQT6GAT6X6.p8 */ = {isa = PBXFileReference; lastKnownFileType = text; path = AuthKey_KQT6GAT6X6.p8; sourceTree = "<group>"; };
 		OBJ_100 /* a_d2i_fp.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = a_d2i_fp.c; sourceTree = "<group>"; };
 		OBJ_101 /* a_digest.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = a_digest.c; sourceTree = "<group>"; };
 		OBJ_102 /* a_dup.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = a_dup.c; sourceTree = "<group>"; };
@@ -2251,7 +2251,7 @@
 		OBJ_5 = {
 			isa = PBXGroup;
 			children = (
-				F151DF961F0CC66B0043A85A /* AuthKey_KQT6GAT6X6.p8 */,
+				F1B680331F0E25F4006121B3 /* AuthKey_KQT6GAT6X6.p8 */,
 				OBJ_6 /* Package.swift */,
 				OBJ_7 /* Sources */,
 				OBJ_10 /* Tests */,

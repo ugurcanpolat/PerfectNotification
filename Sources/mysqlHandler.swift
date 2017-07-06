@@ -22,7 +22,7 @@ let dbName = "test"
 
 let dataMysql = MySQL()
 
-public func logToMySQL(requestTime: String, id: String, status: String) {
+public func logToMySQL(id: String, status: String) {
     // need to make sure something is available.
     guard dataMysql.connect(host: host, user: user, password: password, port: UInt32(port)) else {
         Log.info(message: "Failure connecting to data server \(host)")
@@ -38,11 +38,11 @@ public func logToMySQL(requestTime: String, id: String, status: String) {
         return
     }
     
-    if dataMysql.query(statement: "CREATE TABLE logs(time TIMESTAMP, id CHAR(255), status CHAR(10));") {
+    if dataMysql.query(statement: "CREATE TABLE logs(time TIMESTAMP DEFAULT CURRENT_TIMESTAMP, id CHAR(255), status CHAR(10));") {
         print("Table created in the database.")
     }
 
-    if dataMysql.query(statement: "INSERT INTO logs(time, id, status) VALUES('\(requestTime)', '\(id)', '\(status)');") {
+    if dataMysql.query(statement: "INSERT INTO logs(id, status) VALUES('\(id)', '\(status)');") {
         print("Record inserted to the database.")
     }
 }

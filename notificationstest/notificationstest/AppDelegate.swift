@@ -35,10 +35,16 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
 			UIApplication.shared.registerForRemoteNotifications()
 			center.delegate = self
 		}
+        
+//        // Use Firebase library to configure APIs
+//        FirebaseApp.configure()
 		return true
 	}
 	
 	func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+//        let token = Messaging.messaging().fcmToken
+//        print("FCM token: \(token ?? "")")
+        
 		self.deviceToken = deviceToken
 		sendAddDevice {
 		}
