@@ -122,12 +122,23 @@ class NotificationsHandler {
         
         var FCMRequest = URLRequest(url: URL(string: androidFCMSendUrl)!)
         FCMRequest.httpMethod = "POST"
-        FCMRequest.setValue("application/application/json", forHTTPHeaderField: "Content-Type")
+        FCMRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
         FCMRequest.setValue("key=\(androidServerKey)", forHTTPHeaderField: "Authorization")
         
         var bodyOfRequest = "{ \"notification\": {\n\t\"title\": \"\(pushDictionary["title"] as! String)\",\n"
         bodyOfRequest += "\t\"body\": \"\(pushDictionary["body"] as! String)\"\n  },\n"
-        bodyOfRequest += "  \"to\": \"\(pushDictionary["to"] as! String)\"\n}"
+        
+        bodyOfRequest += "  \"registration_ids\": ["
+        
+        let tokens: [String] = pushDictionary["to"] as! [String]
+        
+        for c in 0..<(tokens.count) {
+            if c < tokens.count - 1 {
+                bodyOfRequest += "\"\(tokens[c])\","
+            } else {
+                bodyOfRequest += "\"\(tokens[c])\"]\n}"
+            }
+        }
         
         FCMRequest.httpBody = bodyOfRequest.data(using: .utf8)
         
@@ -141,8 +152,20 @@ class NotificationsHandler {
                 return
             }
             
-            let responseFromFCM = String(data: data, encoding: .utf8)
-            print(responseFromFCM ?? "")
+            var responseJSON = [String:Any]()
+            
+            do {
+                responseJSON = try JSONSerialization.jsonObject(with: data, options: []) as! [String: Any]
+            } catch {
+                print("Empty response from FCM.")
+                return
+            }
+            
+            let numberOfFails: Int = responseJSON["failure"] as! Int
+            
+            if numberOfFails > 0 {
+                print("Sending notification has failed for \(numberOfFails) device(s).")
+            }
         }
         // Resume the task since it is in the suspended state when it is created
         task.resume()
