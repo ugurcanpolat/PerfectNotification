@@ -48,22 +48,6 @@ class NotificationsHandler {
     }
     
     func notifyDevices(request: HTTPRequest, response: HTTPResponse) {
-//  ** Calendar class has an error on Linux because of TimeZone
-//        let date = Date()
-//        let calendar = Calendar.autoupdatingCurrent.dateComponents(in: .autoupdatingCurrent, from: date)
-//        
-//        let localDate = "\(calendar.year!)-\(calendar.month!)-\(calendar.day!)"
-//        let dateFormatter = DateFormatter()
-//        dateFormatter.dateFormat = "yyyy-MM-dd"
-//        let convertedDate = dateFormatter.date(from: localDate)
-//        
-//        let localTime = "\(calendar.hour!):\(calendar.minute!):\(calendar.second!)"
-//        let timeFormatter = DateFormatter()
-//        timeFormatter.dateFormat = "HH:mm:ss"
-//        let convertedTime = timeFormatter.date(from: localTime)
-//        
-//        let requestTime = dateFormatter.string(from: convertedDate!) + " " + timeFormatter.string(from: convertedTime!)
-        
         print("Sending notification to all devices.")
         
         let data = request.postBodyString!.data(using: .utf8)
@@ -79,31 +63,7 @@ class NotificationsHandler {
         
         let deviceIds: [String] = pushDictionary["ids"] as! [String]
         
-        NotificationPusher(apnsTopic: notificationsTestId)
-            .pushAPNS(configurationName: notificationsTestId,
-                      deviceTokens: deviceIds,
-                      notificationItems: [
-                        .alertBody(pushDictionary["body"] as! String),
-                        .alertTitle(pushDictionary["title"] as! String),
-                        .badge(1),
-                        .sound("default")]) {
-                            responses in
-                            if response.status.code == 200 {
-                                print("Notification has been sent")
-                                
-                                for id in deviceIds {
-                                    logToMySQL(id: id, status: "successful")
-                                }
-                                
-                            } else {
-                                print("Error: Response status is \(response.status.code)")
-                                
-                                for id in deviceIds {
-                                    logToMySQL(id: id, status: "error")
-                                }
-                            }
-                            response.completed()
-        }
+        sendNotificationRequestToAPNS(deviceIds: deviceIds, title: pushDictionary["title"] as! String, body: pushDictionary["body"] as! String)
     }
     
     func notifyAndroidDevices(request: HTTPRequest, response: HTTPResponse) {
@@ -170,6 +130,84 @@ class NotificationsHandler {
         // Resume the task since it is in the suspended state when it is created
         task.resume()
         response.completed()
+    }
+    
+    func sendNotificationRequestToFCM(deviceIds: [String], title: String, body: String) {
+        var FCMRequest = URLRequest(url: URL(string: androidFCMSendUrl)!)
+        FCMRequest.httpMethod = "POST"
+        FCMRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        FCMRequest.setValue("key=\(androidServerKey)", forHTTPHeaderField: "Authorization")
+        
+        var bodyOfRequest = "{ \"notification\": {\n\t\"title\": \"\(title)\",\n"
+        bodyOfRequest += "\t\"body\": \"\(body)\"\n  },\n"
+        
+        bodyOfRequest += "  \"registration_ids\": ["
+        
+        for c in 0..<(deviceIds.count) {
+            if c < deviceIds.count - 1 {
+                bodyOfRequest += "\"\(deviceIds[c])\","
+            } else {
+                bodyOfRequest += "\"\(deviceIds[c])\"]\n}"
+            }
+        }
+        
+        FCMRequest.httpBody = bodyOfRequest.data(using: .utf8)
+        
+        let task = URLSession.shared.dataTask(with: FCMRequest) { (data, response, error) in
+            guard let data = data, error == nil else {
+                // Check for fundamental networking errors
+                return
+            }
+            
+            if let httpStatus = response as? HTTPURLResponse, httpStatus.statusCode != 200 {
+                return
+            }
+            
+            var responseJSON = [String:Any]()
+            
+            do {
+                responseJSON = try JSONSerialization.jsonObject(with: data, options: []) as! [String: Any]
+            } catch {
+                print("Empty response from FCM.")
+                return
+            }
+            
+            let numberOfFails: Int = responseJSON["failure"] as! Int
+            
+            if numberOfFails > 0 {
+                print("Sending notification has failed for \(numberOfFails) device(s).")
+            }
+        }
+        // Resume the task since it is in the suspended state when it is created
+        task.resume()
+    }
+    
+    func sendNotificationRequestToAPNS(deviceIds: [String], title: String, body: String) {
+        NotificationPusher(apnsTopic: notificationsTestId)
+            .pushAPNS(configurationName: notificationsTestId,
+                      deviceTokens: deviceIds,
+                      notificationItems: [
+                        .alertBody(body),
+                        .alertTitle(title),
+                        .badge(1),
+                        .sound("default")]) {
+                            responses in
+                            for response in responses {
+                                if response.status.code == 200 {
+                                    print("Notification has been sent")
+                                    for id in deviceIds {
+                                        logToMySQL(id: id, status: "successful")
+                                    }
+                                    
+                                } else {
+                                    print("Error: Response status is \(response.status.code)")
+                                    
+                                    for id in deviceIds {
+                                        logToMySQL(id: id, status: "error")
+                                    }
+                                }
+                            }
+        }
     }
 }
 
