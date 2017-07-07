@@ -29,7 +29,6 @@ NotificationPusher.addConfigurationAPNS(name: appId,
                                         privateKeyPath: apnsPrivateKey)
 
 class NotificationsHandler {
-    
     func notifyDevices(request: HTTPRequest, response: HTTPResponse) {
         print("Sending notification to all devices.")
         
@@ -47,6 +46,23 @@ class NotificationsHandler {
         }
         
         response.addHeader(.contentType, value: "application/json")
+        
+        // If request is a payload use payload functions
+        if pushDictionary["aps"] != nil {
+            sendNotificationRequestToAPNS(payload: request.postBodyString!) {
+                iOSResult in
+                json.updateValue(iOSResult, forKey: "iOS")
+                try? response.setBody(json: json).completed()
+            }
+            return
+        } else if pushDictionary["body"] == nil {
+            sendNotificationRequestToFCM(payload: request.postBodyString!) {
+                androidResult in
+                json.updateValue(androidResult, forKey: "Android")
+                try? response.setBody(json: json).completed()
+            }
+            return
+        }
         
         let deviceIds: [String] = pushDictionary["ids"] as! [String]
         
@@ -85,6 +101,9 @@ class NotificationsHandler {
     
     func sendNotificationRequestToAPNS(deviceIds: [String], title: String, body: String, completionHandler: @escaping (_ json: [String:Any])->()) {
         var json = [String:Any]()
+
+        var numberOfSuccess: Int = 0
+        var numberOfFailure: Int = 0
         
         NotificationPusher(apnsTopic: appId)
             .pushAPNS(configurationName: appId,
@@ -97,22 +116,34 @@ class NotificationsHandler {
                             responses in
                             for response in responses {
                                 if response.status.code == 200 {
-                                    print("Notification has been sent")
-                                    json.updateValue(1, forKey: "success")
+                                    numberOfSuccess += 1
                                     for id in deviceIds {
                                         logToMySQL(id: id, status: "successful")
                                     }
                                     
                                 } else {
                                     print("Error: Response status is \(response.status.code)")
-                                    json.updateValue(1, forKey: "fail")
+                                    numberOfFailure += 1
                                     for id in deviceIds {
                                         logToMySQL(id: id, status: "error")
                                     }
                                 }
                             }
+                            
+                            if numberOfSuccess > 0 {
+                                print("Notification has been sent to \(numberOfSuccess) iOS device(s).")
+                                json.updateValue(numberOfSuccess, forKey: "success")
+                            }
+                            
+                            if numberOfFailure > 0 {
+                                print("Sending notification has failed for \(numberOfFailure) iOS device(s).")
+                                json.updateValue(numberOfFailure, forKey: "fail")
+                            }
                             completionHandler(json)
         }
+    }
+    
+    func sendNotificationRequestToAPNS(payload: String, completionHandler: @escaping (_ json: [String:Any])->()) {
     }
     
     func sendNotificationRequestToFCM(deviceIds: [String], title: String, body: String, completionHandler: @escaping (_ json: [String:Any])->()) {
@@ -142,10 +173,14 @@ class NotificationsHandler {
             guard let data = data, error == nil else {
                 // Check for fundamental networking errors
                 print("Sending request error for Android devices.")
+                json.updateValue("Networking error", forKey: "error")
+                completionHandler(json)
                 return
             }
             
             if let httpStatus = response as? HTTPURLResponse, httpStatus.statusCode != 200 {
+                json.updateValue("Error from FCM server: \(httpStatus.statusCode)", forKey: "error")
+                completionHandler(json)
                 return
             }
             
@@ -155,6 +190,8 @@ class NotificationsHandler {
                 responseJSON = try JSONSerialization.jsonObject(with: data, options: []) as! [String: Any]
             } catch {
                 print("Empty response from FCM.")
+                json.updateValue("Empty response from FCM", forKey: "error")
+                completionHandler(json)
                 return
             }
             
@@ -162,14 +199,69 @@ class NotificationsHandler {
             let numberOfSuccess: Int = responseJSON["success"] as! Int
             
             if numberOfSuccess > 0 {
-                json.updateValue(numberOfFails, forKey: "success")
+                print("Notification has been sent to \(numberOfSuccess) Android device(s).")
+                json.updateValue(numberOfSuccess, forKey: "success")
             }
             
             if numberOfFails > 0 {
-                print("Sending notification has failed for \(numberOfFails) device(s).")
+                print("Sending notification has failed for \(numberOfFails) Android device(s).")
                 json.updateValue(numberOfFails, forKey: "fail")
             }
+            completionHandler(json)
+        }
+        // Resume the task since it is in the suspended state when it is created
+        task.resume()
+    }
+    
+    func sendNotificationRequestToFCM(payload: String, completionHandler: @escaping (_ json: [String:Any])->()) {
+        var json = [String:Any]()
+        
+        var FCMRequest = URLRequest(url: URL(string: androidFCMSendUrl)!)
+        FCMRequest.httpMethod = "POST"
+        FCMRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        FCMRequest.setValue("key=\(androidServerKey)", forHTTPHeaderField: "Authorization")
+        
+        FCMRequest.httpBody = payload.data(using: .utf8)
+        
+        let task = URLSession.shared.dataTask(with: FCMRequest) { (data, response, error) in
+            guard let data = data, error == nil else {
+                // Check for fundamental networking errors
+                print("Sending request error for Android devices.")
+                json.updateValue("Networking error", forKey: "error")
+                completionHandler(json)
+                return
+            }
             
+            if let httpStatus = response as? HTTPURLResponse, httpStatus.statusCode != 200 {
+                print("Error from FCM server: \(httpStatus.statusCode)")
+                json.updateValue("Error from FCM server: \(httpStatus.statusCode)", forKey: "error")
+                completionHandler(json)
+                return
+            }
+            
+            var responseJSON = [String:Any]()
+            
+            do {
+                responseJSON = try JSONSerialization.jsonObject(with: data, options: []) as! [String: Any]
+            } catch {
+                print("Empty response from FCM.")
+                json.updateValue("Empty response from FCM", forKey: "error")
+                completionHandler(json)
+                return
+            }
+            
+            let numberOfFails: Int = responseJSON["failure"] as! Int
+            let numberOfSuccess: Int = responseJSON["success"] as! Int
+            
+            if numberOfSuccess > 0 {
+                print("Notification has been sent to \(numberOfSuccess) Android device(s).")
+                json.updateValue(numberOfSuccess, forKey: "success")
+            }
+            
+            if numberOfFails > 0 {
+                print("Sending notification has failed for \(numberOfFails) Android device(s).")
+                json.updateValue(numberOfFails, forKey: "fail")
+            }
             completionHandler(json)
         }
         // Resume the task since it is in the suspended state when it is created
