@@ -71,7 +71,7 @@ class NotificationsHandler {
         let title = pushDictionary["title"] as! String
         let body = pushDictionary["body"] as! String
         
-        self.sendNotificationRequestToAPNS(deviceIds: iOSIds, title: title, body: body) {
+        sendNotificationRequestToAPNS(deviceIds: iOSIds, title: title, body: body) {
             iOSResult in
             json.updateValue(iOSResult, forKey: "iOS")
             
