@@ -13,7 +13,7 @@ import PerfectLib
 import PerfectHTTPServer
 import PerfectHTTP
 
-let notificationsTestId = "com.valensas.pushtest"
+let appId = "com.valensas.pushtest"
 
 let apnsTeamIdentifier = "DX2793HJLK"
 let apnsKeyIdentifier = "KQT6GAT6X6"
@@ -22,7 +22,7 @@ let apnsPrivateKey = "./AuthKey_\(apnsKeyIdentifier).p8"
 let androidFCMSendUrl = "https://fcm.googleapis.com/fcm/send"
 let androidServerKey = "AAAA6xdLi5w:APA91bHdVLqqOo4IDvT4Wado-g9GCSkR0Nro4qNCKMJcyD7yc2fNwkfE2McLlJjmUfTBW8XHGEXvWW_SC3h6jUQBZTC3e8KpS5_sLBGYqxm82nb61TkHaNmpSg7l5aLKtul4xyaSPWiv"
 
-NotificationPusher.addConfigurationAPNS(name: notificationsTestId,
+NotificationPusher.addConfigurationAPNS(name: appId,
                                         production: false,
                                         keyId: apnsKeyIdentifier,
                                         teamId: apnsTeamIdentifier,
@@ -63,28 +63,57 @@ class NotificationsHandler {
         
         let deviceIds: [String] = pushDictionary["ids"] as! [String]
         
-        sendNotificationRequestToAPNS(deviceIds: deviceIds, title: pushDictionary["title"] as! String, body: pushDictionary["body"] as! String)
+        var androidIds = [String]() // token length 152
+        var iOSIds = [String]() // token length 64
+        
+        for id in deviceIds {
+            switch id.lengthOfBytes(using: .utf8) {
+            case 64:
+                iOSIds.append(id)
+                break
+            case 152:
+                androidIds.append(id)
+                break
+            default:
+                iOSIds.append(id)
+                androidIds.append(id)
+                break
+            }
+        }
+        
+        let title = pushDictionary["title"] as! String
+        let body = pushDictionary["body"] as! String
+        
+        sendNotificationRequestToAPNS(deviceIds: iOSIds, title: title, body: body)
+        sendNotificationRequestToFCM(deviceIds: androidIds, title: title, body: body)
         response.completed()
     }
     
-    func notifyAndroidDevices(request: HTTPRequest, response: HTTPResponse) {
-        print("Sending notification to Android devices.")
-        
-        let data = request.postBodyString!.data(using: .utf8)
-        var pushDictionary = [String: Any]()
-        
-        do {
-            pushDictionary = try JSONSerialization.jsonObject(with: data!, options: []) as! [String: Any]
-        } catch {
-            print("Empty request body.")
-            response.completed()
-            return
+    func sendNotificationRequestToAPNS(deviceIds: [String], title: String, body: String) {
+        NotificationPusher(apnsTopic: appId)
+            .pushAPNS(configurationName: appId,
+                      deviceTokens: deviceIds,
+                      notificationItems: [
+                        .alertBody(body),
+                        .alertTitle(title),
+                        .badge(1),
+                        .sound("default")]) {
+                            responses in
+                            for response in responses {
+                                if response.status.code == 200 {
+                                    print("Notification has been sent")
+                                    for id in deviceIds {
+                                        logToMySQL(id: id, status: "successful")
+                                    }
+                                    
+                                } else {
+                                    print("Error: Response status is \(response.status.code)")
+                                    for id in deviceIds {
+                                        logToMySQL(id: id, status: "error")
+                                    }
+                                }
+                            }
         }
-        
-        let deviceIds: [String] = pushDictionary["to"] as! [String]
-        
-        sendNotificationRequestToFCM(deviceIds: deviceIds, title: pushDictionary["title"] as! String, body: pushDictionary["body"] as! String)
-        response.completed()
     }
     
     func sendNotificationRequestToFCM(deviceIds: [String], title: String, body: String) {
@@ -111,6 +140,7 @@ class NotificationsHandler {
         let task = URLSession.shared.dataTask(with: FCMRequest) { (data, response, error) in
             guard let data = data, error == nil else {
                 // Check for fundamental networking errors
+                print("Sending request error for Android devices.")
                 return
             }
             
@@ -128,6 +158,10 @@ class NotificationsHandler {
             }
             
             let numberOfFails: Int = responseJSON["failure"] as! Int
+    
+            for (key,value) in responseJSON {
+                print("\(key) and \(String(describing: value))")
+            }
             
             if numberOfFails > 0 {
                 print("Sending notification has failed for \(numberOfFails) device(s).")
@@ -136,43 +170,13 @@ class NotificationsHandler {
         // Resume the task since it is in the suspended state when it is created
         task.resume()
     }
-    
-    func sendNotificationRequestToAPNS(deviceIds: [String], title: String, body: String) {
-        NotificationPusher(apnsTopic: notificationsTestId)
-            .pushAPNS(configurationName: notificationsTestId,
-                      deviceTokens: deviceIds,
-                      notificationItems: [
-                        .alertBody(body),
-                        .alertTitle(title),
-                        .badge(1),
-                        .sound("default")]) {
-                            responses in
-                            for response in responses {
-                                if response.status.code == 200 {
-                                    print("Notification has been sent")
-                                    for id in deviceIds {
-                                        logToMySQL(id: id, status: "successful")
-                                    }
-                                    
-                                } else {
-                                    print("Error: Response status is \(response.status.code)")
-                                    
-                                    for id in deviceIds {
-                                        logToMySQL(id: id, status: "error")
-                                    }
-                                }
-                            }
-        }
-    }
 }
 
 var handler = NotificationsHandler()
 
 let routes = [
     Route(method: .post, uri: "/add/{deviceid}", handler: handler.receiveDeviceId),
-    Route(method: .get, uri: "/notify", handler: handler.notifyDevices),
     Route(method: .post, uri: "/notify", handler: handler.notifyDevices),
-    Route(method: .post, uri: "/notifyAndroid", handler: handler.notifyAndroidDevices),
     Route(method: .get, uri: "/list", handler: handler.listDeviceIds)
 ]
 
