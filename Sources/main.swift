@@ -29,12 +29,12 @@ NotificationPusher.addConfigurationAPNS(name: appId,
                                         privateKeyPath: apnsPrivateKey)
 
 class NotificationsHandler {
-
+    
     func notifyDevices(request: HTTPRequest, response: HTTPResponse) {
         print("Sending notification to all devices.")
         
         var json = [String: Any]()
-
+        
         let data = request.postBodyString!.data(using: .utf8)
         var pushDictionary = [String: Any]()
         
@@ -71,16 +71,16 @@ class NotificationsHandler {
         let title = pushDictionary["title"] as! String
         let body = pushDictionary["body"] as! String
         
-        sendNotificationRequestToAPNS(deviceIds: iOSIds, title: title, body: body) {
+        self.sendNotificationRequestToAPNS(deviceIds: iOSIds, title: title, body: body) {
             iOSResult in
             json.updateValue(iOSResult, forKey: "iOS")
+            
+            self.sendNotificationRequestToFCM(deviceIds: androidIds, title: title, body: body) {
+                androidResult in
+                json.updateValue(androidResult, forKey: "Android")
+                try? response.setBody(json: json).completed()
+            }
         }
-        sendNotificationRequestToFCM(deviceIds: androidIds, title: title, body: body) {
-            androidResult in
-            json.updateValue(androidResult, forKey: "Android")
-        }
-        
-        try? response.setBody(json: json).completed()
     }
     
     func sendNotificationRequestToAPNS(deviceIds: [String], title: String, body: String, completionHandler: @escaping (_ json: [String:Any])->()) {
@@ -156,10 +156,6 @@ class NotificationsHandler {
             } catch {
                 print("Empty response from FCM.")
                 return
-            }
-            
-            for (key,value) in responseJSON {
-                print("\(key) and \(String(describing: value))")
             }
             
             let numberOfFails: Int = responseJSON["failure"] as! Int
