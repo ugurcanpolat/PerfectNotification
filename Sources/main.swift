@@ -48,7 +48,15 @@ class NotificationsHandler {
         // If request is a payload use payload functions
         if pushDictionary["aps"] != nil {
             print("Sending notification to iOS device(s).")
-            let deviceIds = pushDictionary["ids"] as! [String]
+            
+            var deviceIds = [String]()
+            
+            if ((pushDictionary["ids"] as? [String]) != nil) {
+                deviceIds = pushDictionary["ids"] as! [String]
+            } else {
+                deviceIds.append(pushDictionary["ids"] as! String)
+            }
+            
             sendNotificationRequestToAPNS(payload: pushDictionary, deviceIds: deviceIds) {
                 iOSResult in
                 json.updateValue(iOSResult, forKey: "iOS")
@@ -65,7 +73,19 @@ class NotificationsHandler {
             return
         }
         
-        let deviceIds: [String] = pushDictionary["ids"] as! [String]
+        if pushDictionary["ids"] == nil {
+            print("Device ids have not been provided.")
+            response.setBody(string: "Device ids have not been provided.").completed()
+            return
+        }
+        
+        var deviceIds = [String]()
+        
+        if ((pushDictionary["ids"] as? [String]) != nil) {
+            deviceIds = pushDictionary["ids"] as! [String]
+        } else {
+            deviceIds.append(pushDictionary["ids"] as! String)
+        }
         
         var androidIds = [String]() // token length 152
         var iOSIds = [String]() // token length 64
@@ -85,18 +105,15 @@ class NotificationsHandler {
             }
         }
         
-        let title = pushDictionary["title"] as! String
-        let body = pushDictionary["body"] as! String
-        
         print("Sending notification to all devices.")
         
         if iOSIds.count > 0 {
-            sendNotificationRequestToAPNS(deviceIds: iOSIds, title: title, body: body) {
+            sendNotificationRequestToAPNS(elements: pushDictionary, deviceIds: iOSIds) {
                 iOSResult in
                 json.updateValue(iOSResult, forKey: "iOS")
                 
                 if androidIds.count > 0 {
-                    self.sendNotificationRequestToFCM(deviceIds: androidIds, title: title, body: body) {
+                    self.sendNotificationRequestToFCM(elements: pushDictionary, deviceIds: androidIds) {
                         androidResult in
                         json.updateValue(androidResult, forKey: "Android")
                         try? response.setBody(json: json).completed()
@@ -106,7 +123,7 @@ class NotificationsHandler {
                 }
             }
         } else if androidIds.count > 0 {
-            sendNotificationRequestToFCM(deviceIds: iOSIds, title: title, body: body) {
+            sendNotificationRequestToFCM(elements: pushDictionary, deviceIds: androidIds) {
                 androidResult in
                 json.updateValue(androidResult, forKey: "Android")
                 try? response.setBody(json: json).completed()
@@ -114,47 +131,64 @@ class NotificationsHandler {
         }
     }
     
-    func sendNotificationRequestToAPNS(deviceIds: [String], title: String, body: String, completionHandler: @escaping (_ json: [String:Any])->()) {
+    func sendNotificationRequestToAPNS(elements: [String:Any], deviceIds: [String],
+                                       completionHandler: @escaping (_ json: [String:Any])->()) {
         var json = [String:Any]()
+        var notificationItems = [APNSNotificationItem]()
         
         var numberOfSuccess: Int = 0
         var numberOfFailure: Int = 0
         
+        for (key, value) in elements {
+            switch key {
+            case "title":
+                notificationItems.append(APNSNotificationItem.alertTitle(value as! String))
+                break
+            case "body":
+                notificationItems.append(APNSNotificationItem.alertBody(value as! String))
+                break
+            case "badge":
+                notificationItems.append(APNSNotificationItem.badge(value as! Int))
+                break
+            case "sound":
+                notificationItems.append(APNSNotificationItem.sound(value as! String))
+                break
+            default:
+                break
+            }
+        }
+        
         NotificationPusher(apnsTopic: appId)
             .pushAPNS(configurationName: appId,
                       deviceTokens: deviceIds,
-                      notificationItems: [
-                        .alertBody(body),
-                        .alertTitle(title),
-                        .badge(1),
-                        .sound("default")]) {
-                            responses in
-                            for response in responses {
-                                if response.status.code == 200 {
-                                    numberOfSuccess += 1
-                                    for id in deviceIds {
-                                        logToMySQL(id: id, status: "successful")
-                                    }
-                                    
-                                } else {
-                                    print("Error: Response status is \(response.status.code)")
-                                    numberOfFailure += 1
-                                    for id in deviceIds {
-                                        logToMySQL(id: id, status: "error")
-                                    }
+                      notificationItems: notificationItems) {
+                        responses in
+                        for response in responses {
+                            if response.status.code == 200 {
+                                numberOfSuccess += 1
+                                for id in deviceIds {
+                                    logToMySQL(id: id, status: "successful")
+                                }
+                                
+                            } else {
+                                print("Error: Response status is \(response.status.code)")
+                                numberOfFailure += 1
+                                for id in deviceIds {
+                                    logToMySQL(id: id, status: "error")
                                 }
                             }
-                            
-                            if numberOfSuccess > 0 {
-                                print("Notification has been sent to \(numberOfSuccess) iOS device(s).")
-                                json.updateValue(numberOfSuccess, forKey: "success")
-                            }
-                            
-                            if numberOfFailure > 0 {
-                                print("Sending notification has failed for \(numberOfFailure) iOS device(s).")
-                                json.updateValue(numberOfFailure, forKey: "fail")
-                            }
-                            completionHandler(json)
+                        }
+                        
+                        if numberOfSuccess > 0 {
+                            print("Notification has been sent to \(numberOfSuccess) iOS device(s).")
+                            json.updateValue(numberOfSuccess, forKey: "success")
+                        }
+                        
+                        if numberOfFailure > 0 {
+                            print("Sending notification has failed for \(numberOfFailure) iOS device(s).")
+                            json.updateValue(numberOfFailure, forKey: "fail")
+                        }
+                        completionHandler(json)
         }
     }
     
@@ -263,18 +297,46 @@ class NotificationsHandler {
         }
     }
     
-    func sendNotificationRequestToFCM(deviceIds: [String], title: String, body: String, completionHandler: @escaping (_ json: [String:Any])->()) {
+    func sendNotificationRequestToFCM(elements: [String:Any], deviceIds: [String],
+                                      completionHandler: @escaping (_ json: [String:Any])->()) {
         var json = [String:Any]()
+        var title: String?
+        var body: String?
+        var sound: String?
+        
+        for (key, value) in elements {
+            switch key {
+            case "title":
+                title = value as? String
+                break
+            case "body":
+                body = value as? String
+                break
+            case "sound":
+                sound = value as? String
+                break
+            default:
+                break
+            }
+        }
         
         var FCMRequest = URLRequest(url: URL(string: androidFCMSendUrl)!)
         FCMRequest.httpMethod = "POST"
         FCMRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
         FCMRequest.setValue("key=\(androidServerKey)", forHTTPHeaderField: "Authorization")
         
-        var bodyOfRequest = "{ \"notification\": {\n\t\"title\": \"\(title)\",\n"
-        bodyOfRequest += "\t\"body\": \"\(body)\"\n  },\n"
+        var bodyOfRequest = "{ \"notification\": {\n"
+        if title != nil {
+            bodyOfRequest += "\t\"title\": \"\(title ?? "")\",\n"
+        }
+        if body != nil {
+            bodyOfRequest += "\t\"body\": \"\(body ?? "")\", \n"
+        }
+        if sound != nil {
+            bodyOfRequest += "\t\"sound\": \"\(sound ?? "")\", \n"
+        }
         
-        bodyOfRequest += "  \"registration_ids\": ["
+        bodyOfRequest += "},\n  \"registration_ids\": ["
         
         for c in 0..<(deviceIds.count) {
             if c < deviceIds.count - 1 {
