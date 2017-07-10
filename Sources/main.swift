@@ -183,8 +183,8 @@ class NotificationsHandler {
                                 
                             } else {
                                 numberOfFailure += 1
+                                reason = response.jsonObjectBody["reason"] as! String
                                 if deviceIds.count == 1 {
-                                    reason = response.jsonObjectBody["reason"] as! String
                                     logToMySQL(id: deviceIds[0], status: String(describing: response.status.code), description: reason)
                                 }
                             }
