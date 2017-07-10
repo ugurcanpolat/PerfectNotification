@@ -173,6 +173,7 @@ class NotificationsHandler {
                       deviceTokens: deviceIds,
                       notificationItems: notificationItems) {
                         responses in
+                        var reason = ""
                         for response in responses {
                             if response.status.code == 200 {
                                 numberOfSuccess += 1
@@ -183,9 +184,19 @@ class NotificationsHandler {
                             } else {
                                 numberOfFailure += 1
                                 if deviceIds.count == 1 {
-                                    let reason: String = response.jsonObjectBody["reason"] as! String
+                                    reason = response.jsonObjectBody["reason"] as! String
                                     logToMySQL(id: deviceIds[0], status: String(describing: response.status.code), description: reason)
                                 }
+                            }
+                        }
+                        
+                        if deviceIds.count > 1 {
+                            if numberOfSuccess == deviceIds.count {
+                                logToMySQL(id: "MultipleToken-iOS", status: "200", description: "Sent")
+                            } else if numberOfFailure == deviceIds.count {
+                                logToMySQL(id: "MultipleToken-iOS", status: "400", description: reason)
+                            } else {
+                                logToMySQL(id: "MultipleToken-iOS", status: "400", description: "Sent except some devices")
                             }
                         }
                         
@@ -202,7 +213,8 @@ class NotificationsHandler {
         }
     }
     
-    func sendNotificationRequestToAPNS(payload: [String:Any], deviceIds: [String], completionHandler: @escaping (_ json: [String:Any])->()) {
+    func sendNotificationRequestToAPNS(payload: [String:Any], deviceIds: [String],
+                                       completionHandler: @escaping (_ json: [String:Any])->()) {
         var json = [String:Any]()
         var notificationItems = [APNSNotificationItem]()
         var aps = [String:Any]()
@@ -278,6 +290,7 @@ class NotificationsHandler {
             .pushAPNS(configurationName: appId,
                       deviceTokens: deviceIds,
                       notificationItems: notificationItems) {responses in
+                        var reason = ""
                         for response in responses {
                             if response.status.code == 200 {
                                 numberOfSuccess += 1
@@ -287,10 +300,20 @@ class NotificationsHandler {
                                 
                             } else {
                                 numberOfFailure += 1
+                                reason = response.jsonObjectBody["reason"] as! String
                                 if deviceIds.count == 1 {
-                                    let reason: String = response.jsonObjectBody["reason"] as! String
                                     logToMySQL(id: deviceIds[0], status: String(describing: response.status.code), description: reason)
                                 }
+                            }
+                        }
+                        
+                        if deviceIds.count > 1 {
+                            if numberOfSuccess == deviceIds.count {
+                                logToMySQL(id: "MultipleToken-iOS", status: "200", description: "Sent")
+                            } else if numberOfFailure == deviceIds.count {
+                                logToMySQL(id: "MultipleToken-iOS", status: "400", description: reason)
+                            } else {
+                                logToMySQL(id: "MultipleToken-iOS", status: "400", description: "Sent except some devices")
                             }
                         }
                         
@@ -383,9 +406,43 @@ class NotificationsHandler {
                 completionHandler(json)
                 return
             }
-            
+        
             let numberOfFails: Int = responseJSON["failure"] as! Int
             let numberOfSuccess: Int = responseJSON["success"] as! Int
+            
+            if deviceIds.count == 1 {
+                if numberOfSuccess == 1 {
+                    logToMySQL(id: deviceIds[0], status: "200", description: "Sent")
+                } else if numberOfFails == 1 {
+                    let results = responseJSON["results"] as! [[String:Any]]
+                    for result in results {
+                        if result["error"] != nil {
+                            logToMySQL(id: deviceIds[0], status: "400", description: result["error"] as! String)
+                            break
+                        }
+                    }
+                }
+            } else if deviceIds.count > 1 {
+                if numberOfSuccess == deviceIds.count {
+                    logToMySQL(id: "MultipleToken-Android", status: "200", description: "Sent")
+                } else if numberOfFails == deviceIds.count {
+                    let results = responseJSON["results"] as! [[String:Any]]
+                    for result in results {
+                        if result["error"] != nil {
+                            logToMySQL(id: "MultipleToken-Android", status: "400", description: result["error"] as! String)
+                            break
+                        }
+                    }
+                } else {
+                    let results = responseJSON["results"] as! [[String:Any]]
+                    for result in results {
+                        if result["error"] != nil {
+                            logToMySQL(id: "MultipleToken-Android", status: "400", description: "Sent except some devices")
+                            break
+                        }
+                    }
+                }
+            }
             
             if numberOfSuccess > 0 {
                 print("Notification has been sent to \(numberOfSuccess) Android device(s).")
@@ -441,6 +498,42 @@ class NotificationsHandler {
             
             let numberOfFails: Int = responseJSON["failure"] as! Int
             let numberOfSuccess: Int = responseJSON["success"] as! Int
+            
+            let deviceCount = numberOfFails + numberOfSuccess
+            
+            if deviceCount == 1 {
+                if numberOfSuccess == 1 {
+                    logToMySQL(id: "AndroidPayload", status: "200", description: "Sent")
+                } else if numberOfFails == 1 {
+                    let results = responseJSON["results"] as! [[String:Any]]
+                    for result in results {
+                        if result["error"] != nil {
+                            logToMySQL(id: "AndroidPayload", status: "400", description: result["error"] as! String)
+                            break
+                        }
+                    }
+                }
+            } else if deviceCount > 1 {
+                if numberOfSuccess == deviceCount {
+                    logToMySQL(id: "MultipleToken-Android", status: "200", description: "Sent")
+                } else if numberOfFails == deviceCount {
+                    let results = responseJSON["results"] as! [[String:Any]]
+                    for result in results {
+                        if result["error"] != nil {
+                            logToMySQL(id: "MultipleToken-Android", status: "400", description: result["error"] as! String)
+                            break
+                        }
+                    }
+                } else {
+                    let results = responseJSON["results"] as! [[String:Any]]
+                    for result in results {
+                        if result["error"] != nil {
+                            logToMySQL(id: "MultipleToken-Android", status: "400", description: "Sent except some devices")
+                            break
+                        }
+                    }
+                }
+            }
             
             if numberOfSuccess > 0 {
                 print("Notification has been sent to \(numberOfSuccess) Android device(s).")
