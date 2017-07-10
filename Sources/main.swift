@@ -176,15 +176,15 @@ class NotificationsHandler {
                         for response in responses {
                             if response.status.code == 200 {
                                 numberOfSuccess += 1
-                                for id in deviceIds {
-                                    logToMySQL(id: id, status: "successful")
+                                if deviceIds.count == 1 {
+                                    logToMySQL(id: deviceIds[0], status: String(describing: response.status.code), description: "Sent")
                                 }
                                 
                             } else {
-                                print("Error: Response status is \(response.status.code)")
                                 numberOfFailure += 1
-                                for id in deviceIds {
-                                    logToMySQL(id: id, status: "error")
+                                if deviceIds.count == 1 {
+                                    let reason: String = response.jsonObjectBody["reason"] as! String
+                                    logToMySQL(id: deviceIds[0], status: String(describing: response.status.code), description: reason)
                                 }
                             }
                         }
@@ -281,15 +281,15 @@ class NotificationsHandler {
                         for response in responses {
                             if response.status.code == 200 {
                                 numberOfSuccess += 1
-                                for id in deviceIds {
-                                    logToMySQL(id: id, status: "successful")
+                                if deviceIds.count == 1 {
+                                    logToMySQL(id: deviceIds[0], status: String(describing: response.status.code), description: "Sent")
                                 }
                                 
                             } else {
-                                print("Error: Response status is \(response.status.code)")
                                 numberOfFailure += 1
-                                for id in deviceIds {
-                                    logToMySQL(id: id, status: "error")
+                                if deviceIds.count == 1 {
+                                    let reason: String = response.jsonObjectBody["reason"] as! String
+                                    logToMySQL(id: deviceIds[0], status: String(describing: response.status.code), description: reason)
                                 }
                             }
                         }
