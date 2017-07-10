@@ -35,15 +35,24 @@ class NotificationsHandler {
         let data = request.postBodyString!.data(using: .utf8)
         var pushDictionary = [String: Any]()
         
+        response.addHeader(.contentType, value: "application/json")
+        
         do {
             pushDictionary = try JSONSerialization.jsonObject(with: data!, options: []) as! [String: Any]
         } catch {
-            print("Empty request body.")
-            response.setBody(string: "Empty request body").completed()
+            print("Wrong request format.")
+            json.updateValue("Wrong request format", forKey: "Error")
+            try? response.setBody(json: json).completed()
             return
         }
         
-        response.addHeader(.contentType, value: "application/json")
+        if pushDictionary.isEmpty {
+            print("Empty request body.")
+            json.updateValue("Empty request body", forKey: "Error")
+            try? response.setBody(json: json).completed()
+            return
+
+        }
         
         // If request is a payload use payload functions
         if pushDictionary["aps"] != nil {
@@ -75,7 +84,8 @@ class NotificationsHandler {
         
         if pushDictionary["ids"] == nil {
             print("Device ids have not been provided.")
-            response.setBody(string: "Device ids have not been provided.").completed()
+            json.updateValue("Device ids have not been provided", forKey: "Error")
+            try? response.setBody(json: json).completed()
             return
         }
         
