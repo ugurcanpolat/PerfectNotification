@@ -8,10 +8,10 @@ Content-Type: application/json
 
 **BODY**
 
-***Format for notification requests to both Android and iOS:***
+***Format of notification requests for both Android and iOS:***
 
 <pre><code>{
-    "title": "Valensas",
+    "title": "All Devices",
     "body": "PushNotification",
     "badge": 1,
     "sound": "default",
@@ -20,14 +20,14 @@ Content-Type: application/json
 
 *Note that you only have to provide "ids", other keys are optional. "badge" key is only acceptable for iOS requests, hence it does not affect Android requests.*
 
-***Format for notification request to iOS with payload:***
+***Format of notification request for iOS with payload:***
 
 <pre><code>{
     "aps" : {
         "alert" : {
         "title": "iOS Payload",
         "body" : "PushNotification"
-    },
+        },
     "badge" : 3
     },
     "ids" : ["FEBBDDA001311B449380D6550509257086448D3D99E2D0C4D5C33548102FB959", "068CFB2F3686365337C74DB6CA7AED240BCB7AC9C3AF3AF47A96CE01F27B1686"]
@@ -35,7 +35,7 @@ Content-Type: application/json
 
 *Since device IDs are necessary to send requests to APNS, "ids" key must be provided and will be used to send requests. This key is not part of original payload, hence it will not send to APNS server. Other than that, you can send payloads according to Apple's guide for remote notifications, but additionally you must provide "ids" key with device IDs.*
 
-***Format for notification request to Android with payload:***
+***Format of notification request for Android with payload:***
 
 <pre><code>{ 
     "notification": {
