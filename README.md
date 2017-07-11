@@ -83,10 +83,10 @@ Content-Type: application/json
         "fail": 2,
         "error": [
             {
-                "reason": "BadDeviceToken"
+                "message": "BadDeviceToken"
             },
             {
-                "reason": "BadDeviceToken"
+                "message": "BadDeviceToken"
             }
         ],
         "success": 1
@@ -95,10 +95,10 @@ Content-Type: application/json
         "fail": 2,
         "error": [
             {
-                "error": "InvalidRegistration"
+                "message": "InvalidRegistration"
             },
             {
-                "error": "InvalidRegistration"
+                "message": "InvalidRegistration"
             }
         ],
         "success": 1

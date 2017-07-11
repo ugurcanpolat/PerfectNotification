@@ -338,7 +338,7 @@ class NotificationsHandler {
             } else { // Fail
                 numberOfFailureiOS += 1
                 reason = response.jsonObjectBody["reason"] as! String
-                iOSErrors.append(["reason":reason])
+                iOSErrors.append(["message":reason])
                 if deviceIds.count == 1 { // Only one device
                     logToMySQL(id: deviceIds[0], status: String(describing: response.status.code), description: reason)
                 }
@@ -557,7 +557,7 @@ class NotificationsHandler {
             let results = responseJSON["results"] as! [[String:Any]]
             for result in results {
                 if result["error"] != nil {
-                    androidErrors.append(["error":result["error"]!])
+                    androidErrors.append(["message":result["error"]!])
                 }
             }
             print("Sending notification has failed for \(numberOfFails) Android device(s).")
