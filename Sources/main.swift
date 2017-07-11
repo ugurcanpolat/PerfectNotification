@@ -60,12 +60,14 @@ class NotificationsHandler {
             
             var deviceIds = [String]()
             
+            // Check the "ids" key value if it is type of [String] or String
             if ((pushDictionary["ids"] as? [String]) != nil) {
                 deviceIds = pushDictionary["ids"] as! [String]
             } else {
                 deviceIds.append(pushDictionary["ids"] as! String)
             }
             
+            // Send payload request
             sendNotificationRequestToAPNS(payload: pushDictionary, deviceIds: deviceIds) {
                 iOSResult in
                 json.updateValue(iOSResult, forKey: "iOS")
@@ -82,6 +84,7 @@ class NotificationsHandler {
             return
         }
         
+        // Check if the "ids" has provided in the request or not
         if pushDictionary["ids"] == nil {
             print("Device ids have not been provided.")
             json.updateValue("Device ids have not been provided", forKey: "Error")
@@ -91,6 +94,7 @@ class NotificationsHandler {
         
         var deviceIds = [String]()
         
+        // Check the "ids" key value if it is type of [String] or String
         if ((pushDictionary["ids"] as? [String]) != nil) {
             deviceIds = pushDictionary["ids"] as! [String]
         } else {
@@ -100,6 +104,9 @@ class NotificationsHandler {
         var androidIds = [String]() // token length 152
         var iOSIds = [String]() // token length 64
         
+        // Put device ids in the right place. If the length is 152, it is an Android id.
+        // If the length is 64, it is an iOS id. If it does not fit to both cases, then 
+        // try them with both iOS and Android requests.
         for id in deviceIds {
             switch id.lengthOfBytes(using: .utf8) {
             case 64:
@@ -117,22 +124,23 @@ class NotificationsHandler {
         
         print("Sending notification to all devices.")
         
+        // If there are iOS devices, send notification request.
         if iOSIds.count > 0 {
             sendNotificationRequestToAPNS(elements: pushDictionary, deviceIds: iOSIds) {
                 iOSResult in
                 json.updateValue(iOSResult, forKey: "iOS")
                 
-                if androidIds.count > 0 {
+                if androidIds.count > 0 { // Both iOS and Android devices case
                     self.sendNotificationRequestToFCM(elements: pushDictionary, deviceIds: androidIds) {
                         androidResult in
                         json.updateValue(androidResult, forKey: "Android")
                         try? response.setBody(json: json).completed()
                     }
-                } else {
+                } else { // Only iOS devices case
                     try? response.setBody(json: json).completed()
                 }
             }
-        } else if androidIds.count > 0 {
+        } else if androidIds.count > 0 { // Only Android devices cases
             sendNotificationRequestToFCM(elements: pushDictionary, deviceIds: androidIds) {
                 androidResult in
                 json.updateValue(androidResult, forKey: "Android")
@@ -149,6 +157,7 @@ class NotificationsHandler {
         var numberOfSuccess: Int = 0
         var numberOfFailure: Int = 0
         
+        // Create APNSNotificationItem(s).
         for (key, value) in elements {
             switch key {
             case "title":
@@ -168,34 +177,36 @@ class NotificationsHandler {
             }
         }
         
+        // Send notification
         NotificationPusher(apnsTopic: appId)
             .pushAPNS(configurationName: appId,
                       deviceTokens: deviceIds,
                       notificationItems: notificationItems) {
                         responses in
                         var reason = ""
+                        // Check responses of all requests
                         for response in responses {
                             if response.status.code == 200 {
                                 numberOfSuccess += 1
-                                if deviceIds.count == 1 {
+                                if deviceIds.count == 1 { // Only one device
                                     logToMySQL(id: deviceIds[0], status: String(describing: response.status.code), description: "Sent")
                                 }
                                 
                             } else {
                                 numberOfFailure += 1
                                 reason = response.jsonObjectBody["reason"] as! String
-                                if deviceIds.count == 1 {
+                                if deviceIds.count == 1 { // Only one device
                                     logToMySQL(id: deviceIds[0], status: String(describing: response.status.code), description: reason)
                                 }
                             }
                         }
                         
-                        if deviceIds.count > 1 {
-                            if numberOfSuccess == deviceIds.count {
+                        if deviceIds.count > 1 { // More than one device
+                            if numberOfSuccess == deviceIds.count { // All success
                                 logToMySQL(id: "MultipleToken-iOS", status: "200", description: "Sent")
-                            } else if numberOfFailure == deviceIds.count {
+                            } else if numberOfFailure == deviceIds.count { // All fail
                                 logToMySQL(id: "MultipleToken-iOS", status: "400", description: reason)
-                            } else {
+                            } else { // Some fail some success
                                 logToMySQL(id: "MultipleToken-iOS", status: "400", description: "Sent except some devices")
                             }
                         }
@@ -232,6 +243,7 @@ class NotificationsHandler {
             }
         }
         
+        // Create APNSNotificationItem(s) of "aps" key
         for (key, value) in aps {
             switch key {
             case "badge":
@@ -254,6 +266,7 @@ class NotificationsHandler {
             }
         }
         
+        // Create APNSNotificationItem(s) of "alert" key of the "aps" key
         for (key, value) in alert {
             switch key {
             case "body":
@@ -274,6 +287,7 @@ class NotificationsHandler {
             }
         }
         
+        // Create if there are any custon keys and values.
         for (key, value) in payload {
             switch key {
             case "aps":
@@ -286,6 +300,7 @@ class NotificationsHandler {
             }
         }
         
+        // Send notification with the created items
         NotificationPusher(apnsTopic: appId)
             .pushAPNS(configurationName: appId,
                       deviceTokens: deviceIds,
@@ -294,25 +309,25 @@ class NotificationsHandler {
                         for response in responses {
                             if response.status.code == 200 {
                                 numberOfSuccess += 1
-                                if deviceIds.count == 1 {
+                                if deviceIds.count == 1 { // Only one device
                                     logToMySQL(id: deviceIds[0], status: String(describing: response.status.code), description: "Sent")
                                 }
                                 
                             } else {
                                 numberOfFailure += 1
                                 reason = response.jsonObjectBody["reason"] as! String
-                                if deviceIds.count == 1 {
+                                if deviceIds.count == 1 { // Only one device
                                     logToMySQL(id: deviceIds[0], status: String(describing: response.status.code), description: reason)
                                 }
                             }
                         }
                         
-                        if deviceIds.count > 1 {
-                            if numberOfSuccess == deviceIds.count {
+                        if deviceIds.count > 1 { // More than one device
+                            if numberOfSuccess == deviceIds.count { // All success
                                 logToMySQL(id: "MultipleToken-iOS", status: "200", description: "Sent")
-                            } else if numberOfFailure == deviceIds.count {
+                            } else if numberOfFailure == deviceIds.count { // All fail
                                 logToMySQL(id: "MultipleToken-iOS", status: "400", description: reason)
-                            } else {
+                            } else { // Some fail some success
                                 logToMySQL(id: "MultipleToken-iOS", status: "400", description: "Sent except some devices")
                             }
                         }
@@ -358,6 +373,7 @@ class NotificationsHandler {
         FCMRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
         FCMRequest.setValue("key=\(androidServerKey)", forHTTPHeaderField: "Authorization")
         
+        // Insert keys if they are provided.
         var bodyOfRequest = "{ \"notification\": {\n"
         if title != nil {
             bodyOfRequest += "\t\"title\": \"\(title ?? "")\",\n"
@@ -369,6 +385,7 @@ class NotificationsHandler {
             bodyOfRequest += "\t\"sound\": \"\(sound ?? "")\", \n"
         }
         
+        // Insert registration_ids one by one
         bodyOfRequest += "},\n  \"registration_ids\": ["
         
         for c in 0..<(deviceIds.count) {
@@ -379,8 +396,10 @@ class NotificationsHandler {
             }
         }
         
+        // Set HTTP request body
         FCMRequest.httpBody = bodyOfRequest.data(using: .utf8)
         
+        // Send request
         let task = URLSession.shared.dataTask(with: FCMRequest) { (data, response, error) in
             guard let data = data, error == nil else {
                 // Check for fundamental networking errors
@@ -398,6 +417,7 @@ class NotificationsHandler {
             
             var responseJSON = [String:Any]()
             
+            // Response from FCM is in the JSON format
             do {
                 responseJSON = try JSONSerialization.jsonObject(with: data, options: []) as! [String: Any]
             } catch {
@@ -406,37 +426,37 @@ class NotificationsHandler {
                 completionHandler(json)
                 return
             }
-        
+            
             let numberOfFails: Int = responseJSON["failure"] as! Int
             let numberOfSuccess: Int = responseJSON["success"] as! Int
             
-            if deviceIds.count == 1 {
-                if numberOfSuccess == 1 {
+            if deviceIds.count == 1 { // Only one device
+                if numberOfSuccess == 1 { // Success
                     logToMySQL(id: deviceIds[0], status: "200", description: "Sent")
-                } else if numberOfFails == 1 {
+                } else if numberOfFails == 1 { // Fail
                     let results = responseJSON["results"] as! [[String:Any]]
                     for result in results {
-                        if result["error"] != nil {
+                        if result["error"] != nil { // If error reason is provided, log it.
                             logToMySQL(id: deviceIds[0], status: "400", description: result["error"] as! String)
                             break
                         }
                     }
                 }
-            } else if deviceIds.count > 1 {
-                if numberOfSuccess == deviceIds.count {
+            } else if deviceIds.count > 1 { // More than one device
+                if numberOfSuccess == deviceIds.count { // All success
                     logToMySQL(id: "MultipleToken-Android", status: "200", description: "Sent")
-                } else if numberOfFails == deviceIds.count {
+                } else if numberOfFails == deviceIds.count { // All fail
                     let results = responseJSON["results"] as! [[String:Any]]
                     for result in results {
-                        if result["error"] != nil {
+                        if result["error"] != nil { // If error reason is provided, log it.
                             logToMySQL(id: "MultipleToken-Android", status: "400", description: result["error"] as! String)
                             break
                         }
                     }
-                } else {
+                } else { // Some fail some success
                     let results = responseJSON["results"] as! [[String:Any]]
                     for result in results {
-                        if result["error"] != nil {
+                        if result["error"] != nil { // If error reason is provided, log it.
                             logToMySQL(id: "MultipleToken-Android", status: "400", description: "Sent except some devices")
                             break
                         }
@@ -467,8 +487,10 @@ class NotificationsHandler {
         FCMRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
         FCMRequest.setValue("key=\(androidServerKey)", forHTTPHeaderField: "Authorization")
         
+        // Set the given payload directly as body of the request.
         FCMRequest.httpBody = payload.data(using: .utf8)
         
+        // Send request
         let task = URLSession.shared.dataTask(with: FCMRequest) { (data, response, error) in
             guard let data = data, error == nil else {
                 // Check for fundamental networking errors
@@ -487,6 +509,7 @@ class NotificationsHandler {
             
             var responseJSON = [String:Any]()
             
+            // Response from FCM is in the JSON format
             do {
                 responseJSON = try JSONSerialization.jsonObject(with: data, options: []) as! [String: Any]
             } catch {
@@ -501,33 +524,33 @@ class NotificationsHandler {
             
             let deviceCount = numberOfFails + numberOfSuccess
             
-            if deviceCount == 1 {
-                if numberOfSuccess == 1 {
+            if deviceCount == 1 { // Only one device
+                if numberOfSuccess == 1 { // Success
                     logToMySQL(id: "AndroidPayload", status: "200", description: "Sent")
-                } else if numberOfFails == 1 {
+                } else if numberOfFails == 1 { // Fail
                     let results = responseJSON["results"] as! [[String:Any]]
                     for result in results {
-                        if result["error"] != nil {
+                        if result["error"] != nil { // If error reason is provided, log it.
                             logToMySQL(id: "AndroidPayload", status: "400", description: result["error"] as! String)
                             break
                         }
                     }
                 }
-            } else if deviceCount > 1 {
-                if numberOfSuccess == deviceCount {
+            } else if deviceCount > 1 { // More than one device
+                if numberOfSuccess == deviceCount { // All success
                     logToMySQL(id: "MultipleToken-Android", status: "200", description: "Sent")
-                } else if numberOfFails == deviceCount {
+                } else if numberOfFails == deviceCount { // All fail
                     let results = responseJSON["results"] as! [[String:Any]]
                     for result in results {
-                        if result["error"] != nil {
+                        if result["error"] != nil { // If error reason is provided, log it.
                             logToMySQL(id: "MultipleToken-Android", status: "400", description: result["error"] as! String)
                             break
                         }
                     }
-                } else {
+                } else { // Some fail some success
                     let results = responseJSON["results"] as! [[String:Any]]
                     for result in results {
-                        if result["error"] != nil {
+                        if result["error"] != nil { // If error reason is provided, log it.
                             logToMySQL(id: "MultipleToken-Android", status: "400", description: "Sent except some devices")
                             break
                         }
