@@ -1,3 +1,5 @@
+## Request ##
+
 **REQUEST METHOD**
 
 POST
@@ -25,10 +27,10 @@ Content-Type: application/json
 <pre><code>{
     "aps" : {
         "alert" : {
-        "title": "iOS Payload",
-        "body" : "PushNotification"
+            "title": "iOS Payload",
+            "body" : "PushNotification"
         },
-    "badge" : 3
+        "badge" : 3
     },
     "ids" : ["FEBBDDA001311B449380D6550509257086448D3D99E2D0C4D5C33548102FB959", "068CFB2F3686365337C74DB6CA7AED240BCB7AC9C3AF3AF47A96CE01F27B1686"]
 }</code></pre>
@@ -47,4 +49,53 @@ Content-Type: application/json
 
 *Since device IDs is part of the payload for FCM requests, you should use "registration_ids" or "to" key with your payload. Unlike APNS, this keys will be sent to FCM. Since payload provided in the request will be sent directly to the FCM, you can send payloads according to Google's FCM guide for notifications without any restriction.*  
 
+## Response ##
 
+**HEADER**
+
+Content-Type: application/json
+
+**BODY**
+
+*"success" and "fail" keys show number of successful and failed requests, respectively.*
+
+***If there are no errors:***
+<pre><code>{
+    "iOS": {
+        "success": 1
+    },
+    "android": {
+        "success": 1
+    }
+}</code></pre>
+
+***If there is an error:***
+
+<pre><code>{
+    "iOS": {
+        "fail": 2,
+        "error": [
+            {
+                "reason": "BadDeviceToken"
+            },
+            {
+                "reason": "BadDeviceToken"
+            }
+        ],
+        "success": 1
+    },
+    "android": {
+        "fail": 2,
+        "error": [
+            {
+                "error": "InvalidRegistration"
+            },
+            {
+                "error": "InvalidRegistration"
+            }
+        ],
+        "success": 1
+    }
+}</code></pre>
+
+*"error" key of "android" and "iOS" keys contains error informations returned by FCM and APNS, respectively.*
