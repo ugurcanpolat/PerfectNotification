@@ -29,7 +29,14 @@ NotificationPusher.addConfigurationAPNS(name: appId,
                                         privateKeyPath: apnsPrivateKey)
 
 class NotificationsHandler {
+    var androidErrors = [[String:Any]]()
+    var iOSErrors = [[String:Any]]()
+    
     func notifyDevices(request: HTTPRequest, response: HTTPResponse) {
+        // Empty error variables to avoid mixing up new errors with earlier error
+        androidErrors.removeAll()
+        iOSErrors.removeAll()
+        
         var json = [String: Any]()
         
         let data = request.postBodyString!.data(using: .utf8)
@@ -51,7 +58,6 @@ class NotificationsHandler {
             json.updateValue("Empty request body", forKey: "Error")
             try? response.setBody(json: json).completed()
             return
-            
         }
         
         // If request is a payload use payload functions
@@ -70,7 +76,10 @@ class NotificationsHandler {
             // Send payload request
             sendNotificationRequestToAPNS(payload: pushDictionary, deviceIds: deviceIds) {
                 iOSResult in
-                json.updateValue(iOSResult, forKey: "iOS")
+                var iOS = iOSResult
+                iOS.updateValue(self.iOSErrors, forKey: "error")
+                
+                json.updateValue(iOS, forKey: "iOS")
                 try? response.setBody(json: json).completed()
             }
             return
@@ -78,7 +87,10 @@ class NotificationsHandler {
             print("Sending notification to Android device(s).")
             sendNotificationRequestToFCM(payload: request.postBodyString!) {
                 androidResult in
-                json.updateValue(androidResult, forKey: "Android")
+                var android = androidResult
+                android.updateValue(self.androidErrors, forKey: "error")
+                
+                json.updateValue(android, forKey: "Android")
                 try? response.setBody(json: json).completed()
             }
             return
@@ -128,12 +140,16 @@ class NotificationsHandler {
         if iOSIds.count > 0 {
             sendNotificationRequestToAPNS(elements: pushDictionary, deviceIds: iOSIds) {
                 iOSResult in
-                json.updateValue(iOSResult, forKey: "iOS")
+                var iOS = iOSResult
+                iOS.updateValue(self.iOSErrors, forKey: "error")
+                json.updateValue(iOS, forKey: "iOS")
                 
                 if androidIds.count > 0 { // Both iOS and Android devices case
                     self.sendNotificationRequestToFCM(elements: pushDictionary, deviceIds: androidIds) {
                         androidResult in
-                        json.updateValue(androidResult, forKey: "Android")
+                        var android = androidResult
+                        android.updateValue(self.androidErrors, forKey: "error")
+                        json.updateValue(android, forKey: "android")
                         try? response.setBody(json: json).completed()
                     }
                 } else { // Only iOS devices case
@@ -143,7 +159,9 @@ class NotificationsHandler {
         } else if androidIds.count > 0 { // Only Android devices cases
             sendNotificationRequestToFCM(elements: pushDictionary, deviceIds: androidIds) {
                 androidResult in
-                json.updateValue(androidResult, forKey: "Android")
+                var android = androidResult
+                android.updateValue(self.androidErrors, forKey: "error")
+                json.updateValue(android, forKey: "Android")
                 try? response.setBody(json: json).completed()
             }
         }
@@ -284,11 +302,13 @@ class NotificationsHandler {
             } else { // Fail
                 numberOfFailure += 1
                 reason = response.jsonObjectBody["reason"] as! String
+                iOSErrors.append(["reason":reason])
                 if deviceIds.count == 1 { // Only one device
                     logToMySQL(id: deviceIds[0], status: String(describing: response.status.code), description: reason)
                 }
             }
         }
+        
         
         if deviceIds.count > 1 { // More than one device
             if numberOfSuccess == deviceIds.count { // All success
@@ -496,6 +516,12 @@ class NotificationsHandler {
         }
         
         if numberOfFails > 0 {
+            let results = responseJSON["results"] as! [[String:Any]]
+            for result in results {
+                if result["error"] != nil {
+                    androidErrors.append(["error":result["error"]!])
+                }
+            }
             print("Sending notification has failed for \(numberOfFails) Android device(s).")
             json.updateValue(numberOfFails, forKey: "fail")
         }
