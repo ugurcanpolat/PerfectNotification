@@ -281,6 +281,20 @@ class NotificationsHandler {
             case "launch-image":
                 notificationItems.append(APNSNotificationItem.alertLaunchImage(value as! String))
                 break
+            case "title-loc-key":
+                if let args = alert["title-loc-args"] as? [String] {
+                    notificationItems.append(APNSNotificationItem.alertTitleLoc(value as! String, args))
+                }
+                break
+            case "loc-key":
+                if let args = alert["loc-args"] as? [String] {
+                    notificationItems.append(APNSNotificationItem.alertLoc(value as! String, args))
+                }
+                break
+            case "loc-args":
+                break
+            case "title-loc-args":
+                break
             default:
                 notificationItems.append(APNSNotificationItem.customPayload(key, value))
                 break
