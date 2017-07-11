@@ -32,10 +32,20 @@ class NotificationsHandler {
     var androidErrors = [[String:Any]]()
     var iOSErrors = [[String:Any]]()
     
+    var numberOfSuccessiOS: Int = 0
+    var numberOfFailureiOS: Int = 0
+    
+    var numberOfSuccessAndroid: Int = 0
+    var numberOfFailureAndroid: Int = 0
+    
     func notifyDevices(request: HTTPRequest, response: HTTPResponse) {
-        // Empty error variables to avoid mixing up new errors with earlier error
+        // Empty error variables and numbers to avoid mixing up new errors with earlier error
         androidErrors.removeAll()
         iOSErrors.removeAll()
+        numberOfSuccessiOS = 0
+        numberOfFailureiOS = 0
+        numberOfSuccessAndroid = 0
+        numberOfFailureAndroid = 0
         
         var json = [String: Any]()
         
@@ -43,6 +53,20 @@ class NotificationsHandler {
         var pushDictionary = [String: Any]()
         
         response.addHeader(.contentType, value: "application/json")
+        
+        var iOS = [String:Any]()
+        var android = [String:Any]()
+        
+        iOS.updateValue(numberOfSuccessiOS, forKey: "success")
+        iOS.updateValue(numberOfFailureiOS, forKey: "fail")
+        iOS.updateValue(iOSErrors, forKey: "error")
+        
+        android.updateValue(numberOfSuccessiOS, forKey: "success")
+        android.updateValue(numberOfFailureiOS, forKey: "fail")
+        android.updateValue(androidErrors, forKey: "error")
+        
+        json.updateValue(iOS, forKey: "iOS")
+        json.updateValue(android, forKey: "android")
         
         do {
             pushDictionary = try JSONSerialization.jsonObject(with: data!, options: []) as! [String: Any]
@@ -90,7 +114,7 @@ class NotificationsHandler {
                 var android = androidResult
                 android.updateValue(self.androidErrors, forKey: "error")
                 
-                json.updateValue(android, forKey: "Android")
+                json.updateValue(android, forKey: "android")
                 try? response.setBody(json: json).completed()
             }
             return
@@ -161,7 +185,7 @@ class NotificationsHandler {
                 androidResult in
                 var android = androidResult
                 android.updateValue(self.androidErrors, forKey: "error")
-                json.updateValue(android, forKey: "Android")
+                json.updateValue(android, forKey: "android")
                 try? response.setBody(json: json).completed()
             }
         }
@@ -287,20 +311,18 @@ class NotificationsHandler {
     }
     
     func apnsResponseHandler(responses: [NotificationResponse], deviceIds: [String]) -> [String:Any] {
-        var numberOfSuccess: Int = 0
-        var numberOfFailure: Int = 0
         var json = [String:Any]()
         var reason = ""
         // Check responses of all requests
         for response in responses {
             if response.status.code == 200 { // Success
-                numberOfSuccess += 1
+                numberOfSuccessiOS += 1
                 if deviceIds.count == 1 { // Only one device
                     logToMySQL(id: deviceIds[0], status: String(describing: response.status.code), description: "Sent")
                 }
                 
             } else { // Fail
-                numberOfFailure += 1
+                numberOfFailureiOS += 1
                 reason = response.jsonObjectBody["reason"] as! String
                 iOSErrors.append(["reason":reason])
                 if deviceIds.count == 1 { // Only one device
@@ -309,26 +331,26 @@ class NotificationsHandler {
             }
         }
         
-        
         if deviceIds.count > 1 { // More than one device
-            if numberOfSuccess == deviceIds.count { // All success
+            if numberOfSuccessiOS == deviceIds.count { // All success
                 logToMySQL(id: "MultipleToken-iOS", status: "200", description: "Sent")
-            } else if numberOfFailure == deviceIds.count { // All fail
+            } else if numberOfFailureiOS == deviceIds.count { // All fail
                 logToMySQL(id: "MultipleToken-iOS", status: "400", description: reason)
             } else { // Some fail some success
                 logToMySQL(id: "MultipleToken-iOS", status: "400", description: "Sent except some devices")
             }
         }
         
-        if numberOfSuccess > 0 {
-            print("Notification has been sent to \(numberOfSuccess) iOS device(s).")
-            json.updateValue(numberOfSuccess, forKey: "success")
+        if numberOfSuccessiOS > 0 {
+            print("Notification has been sent to \(numberOfSuccessiOS) iOS device(s).")
         }
         
-        if numberOfFailure > 0 {
-            print("Sending notification has failed for \(numberOfFailure) iOS device(s).")
-            json.updateValue(numberOfFailure, forKey: "fail")
+        if numberOfFailureiOS > 0 {
+            print("Sending notification has failed for \(numberOfFailureiOS) iOS device(s).")
         }
+        
+        json.updateValue(numberOfSuccessiOS, forKey: "success")
+        json.updateValue(numberOfFailureiOS, forKey: "fail")
         return json
     }
     
@@ -474,6 +496,9 @@ class NotificationsHandler {
         let numberOfFails: Int = responseJSON["failure"] as! Int
         let numberOfSuccess: Int = responseJSON["success"] as! Int
         
+        numberOfFailureAndroid = numberOfFails
+        numberOfSuccessAndroid = numberOfSuccess
+        
         let deviceCount = numberOfFails + numberOfSuccess
         
         if deviceCount == 1 { // Only one device
@@ -512,7 +537,6 @@ class NotificationsHandler {
         
         if numberOfSuccess > 0 {
             print("Notification has been sent to \(numberOfSuccess) Android device(s).")
-            json.updateValue(numberOfSuccess, forKey: "success")
         }
         
         if numberOfFails > 0 {
@@ -523,8 +547,9 @@ class NotificationsHandler {
                 }
             }
             print("Sending notification has failed for \(numberOfFails) Android device(s).")
-            json.updateValue(numberOfFails, forKey: "fail")
         }
+        json.updateValue(numberOfSuccess, forKey: "success")
+        json.updateValue(numberOfFails, forKey: "fail")
         return json
     }
 }

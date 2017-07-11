@@ -57,19 +57,26 @@ Content-Type: application/json
 
 **BODY**
 
-*"success" and "fail" keys show number of successful and failed requests, respectively.*
+***Request has failed:***
+<pre><code>{
+    "error": "Empty response from FCM."
+}</code></pre>
 
-***If there are no errors:***
+***Request is successful and all notifications are sent:***
 <pre><code>{
     "iOS": {
+        "fail": 0,
+        "error": [],
         "success": 1
     },
     "android": {
+        "fail": 0,
+        "error": [],
         "success": 1
     }
 }</code></pre>
 
-***If there is an error:***
+***Request is successful, but some notifications are not delivered:***
 
 <pre><code>{
     "iOS": {
@@ -99,3 +106,4 @@ Content-Type: application/json
 }</code></pre>
 
 *"error" key of "android" and "iOS" keys contains error informations returned by FCM and APNS, respectively.*
+*"success" and "fail" keys show number of successful and failed requests, respectively.*
